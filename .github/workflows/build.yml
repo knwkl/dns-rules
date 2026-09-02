@@ -16,6 +16,7 @@ jobs:
           echo "AD_URL=https://raw.githubusercontent.com/pmkol/easymosdns/refs/heads/rules/ad_domain_list.txt" >> $GITHUB_ENV
           echo "CDN_URL=https://raw.githubusercontent.com/pmkol/easymosdns/refs/heads/rules/cdn_domain_list.txt" >> $GITHUB_ENV
           echo "CHINA_IP_URL=https://raw.githubusercontent.com/pmkol/easymosdns/refs/heads/rules/china_ip_list.txt" >> $GITHUB_ENV
+          echo "GFW_IP_URL=https://raw.githubusercontent.com/pmkol/easymosdns/refs/heads/rules/gfw_ip_list.txt" >> $GITHUB_ENV
 
       - name: Convert china domains
         run: |
@@ -74,6 +75,14 @@ jobs:
             { print "IP-CIDR," $0 }
           ' > china_ip.list
 
+      - name: Convert gfw IPs
+        run: |
+          curl -sSL $GFW_IP_URL | awk '
+            /^\s*$/ || /^\s*#/ { next }
+            /:/ { print "IP-CIDR6," $0; next }
+            { print "IP-CIDR," $0 }
+          ' > gfw_ip.list
+
       - name: Check for changes
         id: diff
         run: |
@@ -83,9 +92,10 @@ jobs:
           curl -sSf "https://raw.githubusercontent.com/${{ github.repository }}/release/reject.list"   -o prev/reject.list   2>/dev/null || true
           curl -sSf "https://raw.githubusercontent.com/${{ github.repository }}/release/cdn.list"      -o prev/cdn.list      2>/dev/null || true
           curl -sSf "https://raw.githubusercontent.com/${{ github.repository }}/release/china_ip.list" -o prev/china_ip.list 2>/dev/null || true
+          curl -sSf "https://raw.githubusercontent.com/${{ github.repository }}/release/gfw_ip.list"   -o prev/gfw_ip.list   2>/dev/null || true
 
-          NEW_HASH=$(cat china.list gfw.list reject.list cdn.list china_ip.list | sha256sum)
-          OLD_HASH=$(cat prev/china.list prev/gfw.list prev/reject.list prev/cdn.list prev/china_ip.list 2>/dev/null | sha256sum || echo "none")
+          NEW_HASH=$(cat china.list gfw.list reject.list cdn.list china_ip.list gfw_ip.list | sha256sum)
+          OLD_HASH=$(cat prev/china.list prev/gfw.list prev/reject.list prev/cdn.list prev/china_ip.list prev/gfw_ip.list 2>/dev/null | sha256sum || echo "none")
 
           if [ "$NEW_HASH" = "$OLD_HASH" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -96,7 +106,7 @@ jobs:
       - name: Push to release branch
         if: steps.diff.outputs.changed == 'true'
         run: |
-          mkdir output && mv china.list gfw.list reject.list cdn.list china_ip.list output/
+          mkdir output && mv china.list gfw.list reject.list cdn.list china_ip.list gfw_ip.list output/
           cd output
           git config --global init.defaultBranch release
           git init
